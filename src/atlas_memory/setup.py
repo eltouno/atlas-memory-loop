@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,7 @@ class CodexSetupPlan:
     mcp_name: str
     action: str = "install"
     previous_hook_commands: tuple[str, ...] = ()
+    previous_python_executable: Path | None = None
 
     @property
     def targets(self) -> tuple[Path, ...]:
@@ -131,6 +132,11 @@ def build_codex_plan(
         if isinstance(previous_state, dict)
         else ""
     )
+    stored_python_executable = (
+        str(previous_state.get("python_executable", "")).strip()
+        if isinstance(previous_state, dict)
+        else ""
+    )
     resolved_project_name = (
         _safe_name(slugify(project_name))
         if project_name
@@ -150,6 +156,9 @@ def build_codex_plan(
         mcp_name=f"atlas-memory-{vault_name}",
         action=action,
         previous_hook_commands=previous_hook_commands,
+        previous_python_executable=(
+            Path(stored_python_executable) if stored_python_executable else None
+        ),
     )
 
 
@@ -235,12 +244,30 @@ def _hook_command(
     return _shell_command(arguments)
 
 
+def _python_executable_aliases(plan: CodexSetupPlan) -> set[Path]:
+    aliases = {plan.python_executable}
+    if plan.previous_python_executable is not None:
+        aliases.add(plan.previous_python_executable)
+
+    try:
+        resolved = plan.python_executable.resolve()
+        aliases.add(resolved)
+        for candidate in plan.python_executable.parent.glob("python*"):
+            if candidate.is_file() and candidate.resolve() == resolved:
+                aliases.add(candidate)
+    except OSError:
+        pass
+    return aliases
+
+
 def _managed_hook_commands(plan: CodexSetupPlan) -> set[str]:
     commands = set(plan.previous_hook_commands)
     legacy_project_name = _safe_name(slugify(plan.vault_path.name))
-    for project_name in {plan.project_name, legacy_project_name}:
-        for event in (*HOOK_EVENTS, *LEGACY_HOOK_EVENTS):
-            commands.add(_hook_command(plan, event, project_name=project_name))
+    for python_executable in _python_executable_aliases(plan):
+        alias_plan = replace(plan, python_executable=python_executable)
+        for project_name in {plan.project_name, legacy_project_name}:
+            for event in (*HOOK_EVENTS, *LEGACY_HOOK_EVENTS):
+                commands.add(_hook_command(alias_plan, event, project_name=project_name))
     return commands
 
 
@@ -561,6 +588,33 @@ def verify_codex_setup(project_root: str | Path | None = None) -> dict[str, Any]
             missing_events.append(event)
     if missing_events:
         raise SetupError(f"Managed hooks are missing: {', '.join(missing_events)}")
+
+    managed_commands = _managed_hook_commands(plan)
+    expected_handlers = {(event, _hook_command(plan, event)) for event in HOOK_EVENTS}
+    managed_handlers: list[tuple[str, str]] = []
+    for event, groups in hooks.items():
+        if not isinstance(groups, list):
+            continue
+        managed_handlers.extend(
+            (event, str(handler.get("command", "")))
+            for group in groups
+            if isinstance(group, dict) and isinstance(group.get("hooks"), list)
+            for handler in group["hooks"]
+            if isinstance(handler, dict) and str(handler.get("command", "")) in managed_commands
+        )
+    unexpected_events = sorted(
+        {event for event, command in managed_handlers if (event, command) not in expected_handlers}
+        | {
+            event
+            for event, command in expected_handlers
+            if managed_handlers.count((event, command)) > 1
+        }
+    )
+    if unexpected_events:
+        raise SetupError(
+            "Legacy or duplicate managed hooks are still configured: "
+            + ", ".join(unexpected_events)
+        )
 
     try:
         import_check = subprocess.run(

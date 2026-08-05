@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -120,6 +121,60 @@ class CodexSetupTests(unittest.TestCase):
         hooks = json.loads(self.plan.hooks_path.read_text(encoding="utf-8"))["hooks"]
         self.assertEqual(len(hooks["SessionEnd"]), 1)
         self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["command"], "echo foreign")
+
+    def test_setup_removes_managed_hooks_using_an_equivalent_python_alias(self) -> None:
+        bin_directory = self.root / "venv" / "bin"
+        bin_directory.mkdir(parents=True)
+        versioned_python = bin_directory / "python3.13"
+        versioned_python.symlink_to(self.plan.python_executable)
+        alias = bin_directory / "python"
+        alias.symlink_to(versioned_python)
+        current_plan = build_codex_plan(
+            vault=self.vault,
+            project_root=self.project,
+            python_executable=alias,
+        )
+        alias_plan = replace(current_plan, python_executable=versioned_python)
+        self.plan.codex_dir.mkdir()
+        self.plan.hooks_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionStart": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": _hook_command(alias_plan, "SessionStart"),
+                                    }
+                                ]
+                            }
+                        ],
+                        "Stop": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": _hook_command(alias_plan, "Stop"),
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        apply_codex_setup(current_plan)
+
+        hooks = json.loads(self.plan.hooks_path.read_text(encoding="utf-8"))["hooks"]
+        self.assertNotIn("SessionStart", hooks)
+        self.assertEqual(len(hooks["Stop"]), 1)
+        self.assertEqual(
+            hooks["Stop"][0]["hooks"][0]["command"],
+            _hook_command(current_plan, "Stop"),
+        )
 
     def test_setup_preserves_custom_atlas_handler_in_the_same_group(self) -> None:
         self.plan.codex_dir.mkdir()

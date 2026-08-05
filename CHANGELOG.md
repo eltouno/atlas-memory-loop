@@ -6,6 +6,8 @@
   approval boundaries, automated verification, and fresh-host completion criteria.
 - Expose structured verification and remaining manual actions in Codex setup output.
 - Recommend isolated `pipx` installation for a command available across projects.
+- Remove legacy managed hooks that use an equivalent Python executable alias and
+  make verification reject leftover or duplicate managed handlers.
 - Add guided, project-scoped Codex setup with preview and explicit confirmation.
 - Add non-destructive TOML/JSON merging, idempotent managed blocks, backups, and rollback.
 - Add `setup remove codex` while preserving durable Markdown memory and unrelated host config.
