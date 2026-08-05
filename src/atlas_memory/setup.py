@@ -425,6 +425,32 @@ def apply_codex_setup(plan: CodexSetupPlan) -> dict[str, Any]:
         "backup": str(backup_dir),
         "runtime": health["runtime"],
         "restart_required": True,
+        "verification": {
+            "command": [
+                str(plan.python_executable),
+                "-m",
+                "atlas_memory",
+                "setup",
+                "verify",
+                "codex",
+                "--project-root",
+                str(plan.project_root),
+            ],
+            "automated_checks": "pending",
+        },
+        "manual_actions": [
+            {
+                "id": "restart_codex",
+                "description": "Restart Codex in the configured project.",
+            },
+            {
+                "id": "trust_hooks",
+                "description": (
+                    "Open /hooks and trust the UserPromptSubmit and Stop commands "
+                    "after reviewing their exact paths."
+                ),
+            },
+        ],
     }
 
 
@@ -576,5 +602,35 @@ def verify_codex_setup(project_root: str | Path | None = None) -> dict[str, Any]
         "vault": str(plan.vault_path),
         "hooks": list(HOOK_EVENTS),
         "hooks_enabled": True,
-        "trust_review": "Restart Codex in the project and use /hooks to trust both commands.",
+        "automated_checks": {
+            "managed_mcp_config": "passed",
+            "managed_hooks_config": "passed",
+            "python_environment": "passed",
+            "codex_cli": "passed",
+            "hooks_feature": "passed",
+        },
+        "fully_operational": None,
+        "manual_actions": [
+            {
+                "id": "restart_codex",
+                "description": "Restart Codex in the configured project.",
+            },
+            {
+                "id": "trust_hooks",
+                "description": (
+                    "Open /hooks and trust the UserPromptSubmit and Stop commands "
+                    "after reviewing their exact paths."
+                ),
+            },
+            {
+                "id": "fresh_host_smoke_test",
+                "description": (
+                    "Start a fresh Codex task and confirm both hooks run without errors."
+                ),
+            },
+        ],
+        "verification_limit": (
+            "Codex hook trust and fresh-session execution cannot be verified "
+            "from this non-mutating command."
+        ),
     }

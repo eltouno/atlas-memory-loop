@@ -6,6 +6,25 @@ Atlas Memory Loop captures lifecycle events through host hooks, keeps a short-li
 
 > Status: alpha. The storage model and CLI are usable; host hook APIs can still evolve.
 
+## Easiest install: ask your AI agent
+
+Give an AI coding agent access to the project you want to connect, then send it
+this request:
+
+```text
+Install Atlas Memory Loop from https://github.com/eltouno/atlas-memory-loop
+for this project. Follow docs/agent-installation.md from that repository.
+Explain each approval in plain language, perform the configuration for me,
+run every automated check, and clearly identify the final Codex action I must
+approve myself.
+```
+
+The repository contains a complete agent execution protocol covering discovery,
+isolated installation, non-destructive configuration, approval boundaries,
+verification, rollback, and a fresh-host smoke test. The user should not need to
+translate the guide into terminal commands. See
+[`docs/agent-installation.md`](docs/agent-installation.md).
+
 ## Why this exists
 
 Most agent sessions end with useful knowledge trapped in a transcript. Atlas Memory Loop turns that knowledge into a controlled loop:
@@ -52,9 +71,12 @@ Python 3.10 or newer is required.
 From GitHub:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install "git+https://github.com/eltouno/atlas-memory-loop.git"
+pipx install "git+https://github.com/eltouno/atlas-memory-loop.git"
 ```
+
+`pipx` keeps the command isolated from application dependencies while making it
+available across projects. If `pipx` is unavailable, an AI agent can create and
+manage a dedicated virtual environment by following the installation protocol.
 
 For local development:
 
@@ -96,6 +118,10 @@ atlas-memory setup codex --vault /absolute/path/to/your/vault --dry-run
 ```
 
 The default scope is derived from the current project directory name, not the vault name. Use `--project-name` to select an explicit durable scope or disambiguate projects with the same directory name. The Codex integration installs two hooks: `UserPromptSubmit` captures the prompt and recalls relevant context, while `Stop` records the latest assistant response and writes a durable checkpoint snapshot. Restart Codex after setup, open `/hooks`, and trust the two generated commands.
+
+Automated verification intentionally reports hook trust as a remaining user
+action: Codex binds trust to the exact command definition and requires review in
+the host UI.
 
 Remove only the managed Codex integration while preserving Markdown memory:
 

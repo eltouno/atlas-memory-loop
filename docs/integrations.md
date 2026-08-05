@@ -2,6 +2,12 @@
 
 ## Guided Codex setup
 
+For a novice-friendly installation, give the repository URL to an AI coding
+agent and ask it to follow [`agent-installation.md`](agent-installation.md). That
+protocol makes the agent responsible for discovery, execution, and verification
+while preserving explicit user approval for package installation, configuration,
+and Codex hook trust.
+
 For Codex, the recommended path is the project-scoped setup assistant:
 
 ```bash
@@ -28,6 +34,10 @@ atlas-memory setup verify codex
 ```
 
 Verification does not execute a hook or modify memory. It checks the managed files, Python import, Codex executable, and stable hooks feature. Trust remains an explicit host action through `/hooks`.
+
+Its JSON result separates passed automated checks from three remaining activation
+steps: restart, hook trust, and a fresh-host smoke test. Agents must not describe
+the integration as fully operational until those activation steps are confirmed.
 
 To remove the managed integration without deleting runtime journals or Markdown memory:
 
