@@ -241,7 +241,7 @@ def _hook_group(plan: CodexSetupPlan, event: str) -> dict[str, Any]:
     hook: dict[str, Any] = {
         "type": "command",
         "command": _hook_command(plan, event),
-        "timeout": 10 if event == "SessionStart" else 15 if event == "SessionEnd" else 5,
+        "timeout": 10 if event == "SessionStart" else 3 if event == "SessionEnd" else 5,
     }
     if event == "SessionStart":
         hook["statusMessage"] = "Loading Atlas memory"

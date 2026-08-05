@@ -59,6 +59,7 @@ class CodexSetupTests(unittest.TestCase):
         self.assertIn("hooks = true", config)
         self.assertIn("[mcp_servers.atlas-memory-vault]", config)
         self.assertEqual(len(hooks["Stop"]), 2)
+        self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["timeout"], 3)
         self.assertTrue(self.plan.state_path.exists())
         self.assertTrue((self.vault / ".atlas-runtime" / "index" / "atlas.sqlite").exists())
         self.assertIn(".atlas-runtime/", self.plan.vault_gitignore_path.read_text())

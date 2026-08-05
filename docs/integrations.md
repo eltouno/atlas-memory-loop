@@ -60,6 +60,8 @@ hooks = true
 
 The conservative Codex sample uses the lifecycle events confirmed in current public examples: `SessionStart`, `Stop`, and `SessionEnd`. Add tool hooks only after confirming that your installed Codex version exposes them.
 
+Codex limits `SessionEnd` command hooks to a three-second timeout. Keep finalization deterministic and local so it completes within that host limit.
+
 Codex hook support is evolving. Project-local hook discovery may differ between releases and worktree modes; a user-level configuration is the practical fallback. Run `codex features list` and use the host's own diagnostics after upgrades.
 
 ## MCP stdio

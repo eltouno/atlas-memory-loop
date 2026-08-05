@@ -29,7 +29,7 @@
           {
             "type": "command",
             "command": "atlas-memory hook --host codex --event SessionEnd",
-            "timeout": 15
+            "timeout": 3
           }
         ]
       }
