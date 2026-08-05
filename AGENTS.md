@@ -2,6 +2,23 @@
 
 Atlas Memory Loop is a Markdown-first persistent memory layer for agentic hosts.
 
+## Agent-assisted installation
+
+When a user asks to install, configure, upgrade, migrate, verify, or remove Atlas
+Memory Loop, follow [`docs/agent-installation.md`](docs/agent-installation.md).
+
+- Communicate in the user's language and keep shell details out of the explanation
+  unless they ask for them.
+- Perform read-only discovery before asking questions.
+- Never guess a vault when several candidates exist.
+- Show the generated setup plan and obtain explicit user approval before applying it.
+- Do not use `--yes` until that exact plan has been approved.
+- Never disable Codex sandboxing or hook trust to make installation easier.
+- Run the documented automated checks and report separately what still requires a
+  user action in the host UI.
+- Do not call the integration fully operational until hook trust and a fresh-host
+  smoke test have been confirmed.
+
 ## Architecture rules
 
 - Markdown is the canonical durable store.
