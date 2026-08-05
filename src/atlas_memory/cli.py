@@ -14,6 +14,14 @@ from .engine import MemoryEngine
 from .hooks import extract_project, normalize_hook_name
 from .mcp_server import run_server
 from .runtime import build_session_id
+from .setup import (
+    SetupError,
+    apply_codex_remove,
+    apply_codex_setup,
+    build_codex_plan,
+    build_codex_remove_plan,
+    require_codex_cli,
+)
 
 logger = logging.getLogger("atlas_memory")
 
@@ -101,7 +109,56 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("doctor", help="Inspect vault, runtime, index, and sessions")
     subparsers.add_parser("mcp", help="Run the local MCP stdio server")
+
+    setup = subparsers.add_parser("setup", help="Safely configure a supported AI host")
+    setup_sub = setup.add_subparsers(dest="setup_command", required=True)
+    setup_codex = setup_sub.add_parser("codex", help="Configure Codex for one project")
+    setup_codex.add_argument("--vault", default=argparse.SUPPRESS)
+    setup_codex.add_argument("--project-root", default=str(Path.cwd()))
+    setup_codex.add_argument("--yes", action="store_true", help="Apply the displayed plan")
+    setup_codex.add_argument(
+        "--dry-run", action="store_true", help="Display without changing files"
+    )
+    setup_remove = setup_sub.add_parser("remove", help="Remove managed host configuration")
+    setup_remove.add_argument("host", choices=("codex",))
+    setup_remove.add_argument("--project-root", default=str(Path.cwd()))
+    setup_remove.add_argument("--yes", action="store_true", help="Apply the displayed plan")
+    setup_remove.add_argument(
+        "--dry-run", action="store_true", help="Display without changing files"
+    )
     return parser
+
+
+def _confirm_setup(args: argparse.Namespace, preview: str) -> bool:
+    print(preview)
+    if args.dry_run:
+        return False
+    if args.yes:
+        return True
+    if not sys.stdin.isatty():
+        raise SetupError("Interactive confirmation unavailable; review the plan and pass --yes")
+    return input("\nContinuer ? [o/N] ").strip().lower() in {"o", "oui", "y", "yes"}
+
+
+def _handle_setup(args: argparse.Namespace) -> int:
+    require_codex_cli()
+    if args.setup_command == "codex":
+        if not getattr(args, "vault", None):
+            raise ConfigurationError("setup codex requires --vault")
+        plan = build_codex_plan(vault=args.vault, project_root=args.project_root)
+        if not _confirm_setup(args, plan.preview()):
+            _json({"status": "planned" if args.dry_run else "cancelled"})
+            return 0
+        _json(apply_codex_setup(plan))
+        return 0
+    if args.setup_command == "remove" and args.host == "codex":
+        plan = build_codex_remove_plan(args.project_root)
+        if not _confirm_setup(args, plan.preview()):
+            _json({"status": "planned" if args.dry_run else "cancelled"})
+            return 0
+        _json(apply_codex_remove(plan))
+        return 0
+    raise SetupError("Unsupported setup operation")
 
 
 def _handle_hook(args: argparse.Namespace, engine: MemoryEngine) -> int:
@@ -148,6 +205,9 @@ def _handle_hook(args: argparse.Namespace, engine: MemoryEngine) -> int:
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.command == "setup":
+        return _handle_setup(args)
+
     settings = _settings(args)
     engine = MemoryEngine(settings)
 
@@ -226,7 +286,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     try:
         raise SystemExit(run(args))
-    except (ConfigurationError, ValueError, KeyError, OSError) as exc:
+    except (ConfigurationError, SetupError, ValueError, KeyError, OSError) as exc:
         parser.exit(2, f"atlas-memory: {exc}\n")
 
 

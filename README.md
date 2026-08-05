@@ -80,6 +80,28 @@ atlas-memory doctor
 
 Open `70_State/agent_sessions/` and `70_State/memory_candidates/` in Obsidian to inspect what was written.
 
+## Recommended: guided Codex setup
+
+Run the setup command from the Codex project root. It displays every target, asks for one confirmation, backs up existing files, merges configuration non-destructively, initializes the vault, and rolls host configuration back if validation fails.
+
+```bash
+atlas-memory setup codex --vault /absolute/path/to/your/vault
+```
+
+Preview without changing anything:
+
+```bash
+atlas-memory setup codex --vault /absolute/path/to/your/vault --dry-run
+```
+
+The default scope is the current project. This prevents two projects from accidentally recalling the same vault. Restart Codex after setup and approve its hook trust prompt if one appears.
+
+Remove only the managed Codex integration while preserving Markdown memory:
+
+```bash
+atlas-memory setup remove codex
+```
+
 ## MCP stdio
 
 MCP complements hooks: hooks observe lifecycle events automatically; MCP lets the agent deliberately recall or propose memory.
@@ -131,6 +153,8 @@ atlas-memory recover [--idle-minutes 120]
 atlas-memory cleanup [--apply]
 atlas-memory doctor
 atlas-memory mcp
+atlas-memory setup codex --vault VAULT [--project-root PROJECT] [--dry-run]
+atlas-memory setup remove codex [--project-root PROJECT] [--dry-run]
 ```
 
 ## Safety and privacy

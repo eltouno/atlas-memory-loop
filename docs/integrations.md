@@ -1,5 +1,32 @@
 # Host integrations
 
+## Guided Codex setup
+
+For Codex, the recommended path is the project-scoped setup assistant:
+
+```bash
+cd /absolute/path/to/the/codex/project
+atlas-memory setup codex --vault /absolute/path/to/the/vault
+```
+
+The assistant:
+
+- verifies the vault, project root, Python environment, and Codex CLI;
+- displays the exact plan and requires confirmation;
+- creates timestamped local backups under `.codex/backups/atlas-memory-loop/`;
+- merges `.codex/config.toml` and `.codex/hooks.json` without replacing foreign entries;
+- registers a vault-specific MCP name and explicit hook commands;
+- initializes the runtime and validates the written configuration;
+- restores host files automatically if initialization or validation fails.
+
+It also adds local ignore rules for setup backups/state and `.atlas-runtime`. Use `--dry-run` to preview or `--yes` only after the plan has already been explicitly approved.
+
+To remove the managed integration without deleting runtime journals or Markdown memory:
+
+```bash
+atlas-memory setup remove codex
+```
+
 ## Shared prerequisite
 
 Install `atlas-memory` in an environment visible to the AI host, then give the host an absolute vault path:

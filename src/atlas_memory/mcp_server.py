@@ -23,7 +23,7 @@ def create_server(settings: Settings | None = None) -> Any:
     engine.initialize()
     mcp = MCPServer(
         "Atlas Memory Loop",
-        version="0.1.0",
+        version="0.2.0",
         instructions=(
             "Use atlas_recall before work that may depend on prior project context. "
             "Use atlas_remember for explicit durable candidates; it never mutates "
