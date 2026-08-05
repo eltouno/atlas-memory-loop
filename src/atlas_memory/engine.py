@@ -91,11 +91,21 @@ class MemoryEngine:
         if state is None:
             raise KeyError(f"Unknown session: {session_id}")
         events = self.runtime.load_events(session_id)
-        markdown = render_session_markdown(state, events)
+        markdown = render_session_markdown(state, events, note_status="distilled")
         path = self.markdown.write_session(state, markdown)
         self.runtime.mark_distilled(session_id, path)
         self.index.sync()
         return path
+
+    def snapshot(self, session_id: str) -> Path:
+        """Write the current session note without closing the session lifecycle."""
+
+        state = self.runtime.load_state(session_id)
+        if state is None:
+            raise KeyError(f"Unknown session: {session_id}")
+        events = self.runtime.load_events(session_id)
+        markdown = render_session_markdown(state, events, note_status="checkpointed")
+        return self.markdown.write_session(state, markdown)
 
     def finalize_host_session(self, host: str, host_session_id: str) -> Path:
         return self.finalize(build_session_id(host, host_session_id))

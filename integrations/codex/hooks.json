@@ -1,12 +1,13 @@
 {
   "description": "Atlas Memory Loop lifecycle capture and bounded recall.",
   "hooks": {
-    "SessionStart": [
+    "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "atlas-memory hook --host codex --event SessionStart --inject --structured-output",
+            "command": "atlas-memory hook --host codex --event UserPromptSubmit --inject --structured-output",
+            "statusMessage": "Recalling Atlas memory",
             "timeout": 10
           }
         ]

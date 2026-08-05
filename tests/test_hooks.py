@@ -35,6 +35,19 @@ class HookNormalizationTests(unittest.TestCase):
         self.assertEqual(payload["tool_name"], "Edit")
         self.assertNotIn("transcript_path", payload)
 
+    def test_stop_payload_keeps_the_latest_assistant_message(self) -> None:
+        payload = normalized_payload(
+            "turn.checkpoint",
+            {
+                "turn_id": "turn-1",
+                "last_assistant_message": "Implemented the durable snapshot.",
+                "stop_hook_active": False,
+            },
+        )
+        self.assertEqual(payload["turn_id"], "turn-1")
+        self.assertEqual(payload["last_assistant_message"], "Implemented the durable snapshot.")
+        self.assertFalse(payload["stop_hook_active"])
+
 
 if __name__ == "__main__":
     unittest.main()

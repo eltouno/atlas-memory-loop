@@ -1,2 +1,4 @@
+# Current Codex releases enable stable hooks by default. Keep this explicit
+# override only when targeting an older release that still requires it.
 [features]
 hooks = true

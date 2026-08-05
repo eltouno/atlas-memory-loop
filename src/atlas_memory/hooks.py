@@ -43,12 +43,26 @@ def extract_project(payload: dict[str, Any], explicit: str | None = None) -> str
 
 def normalized_payload(event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
     common: dict[str, Any] = {}
-    for key in ("source", "reason", "model", "permission_mode", "agent_id", "agent_type"):
+    for key in (
+        "source",
+        "reason",
+        "model",
+        "permission_mode",
+        "agent_id",
+        "agent_type",
+        "turn_id",
+    ):
         if key in payload:
             common[key] = payload[key]
 
     if event_type == "turn.input":
         common["prompt"] = payload.get("prompt", payload.get("userPrompt", ""))
+    elif event_type == "turn.checkpoint":
+        common["last_assistant_message"] = payload.get(
+            "last_assistant_message", payload.get("lastAssistantMessage", "")
+        )
+        if "stop_hook_active" in payload:
+            common["stop_hook_active"] = payload["stop_hook_active"]
     elif event_type.startswith("tool."):
         common.update(
             {

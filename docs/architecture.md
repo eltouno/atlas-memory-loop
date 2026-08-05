@@ -60,11 +60,11 @@ No embeddings or external vector service are used in the MVP.
 | `tool.before` | `PreToolUse` | Record reduced tool intent. |
 | `tool.completed` | `PostToolUse` | Record reduced successful outcome. |
 | `tool.failed` | `PostToolUseFailure` | Record the error for later learning. |
-| `turn.checkpoint` | `Stop` | Save progress without closing the session. |
+| `turn.checkpoint` | `Stop` | Record the latest assistant response and write a durable snapshot without closing the session. |
 | `context.refresh` | `PreCompact` | Refresh bounded context around compaction. |
 | `session.finalize` | `SessionEnd` | Distill to Markdown and set retention. |
 
-`Stop` must not be treated as a session end: agent hosts may emit it after every completed response while the same conversation continues.
+`Stop` must not be treated as a session end: agent hosts may emit it after every completed response while the same conversation continues. A checkpoint may refresh the Markdown session note, but only finalization changes the lifecycle to `distilled` and starts runtime retention.
 
 ## Session state machine
 
