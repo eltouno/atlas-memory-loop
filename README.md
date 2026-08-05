@@ -22,7 +22,8 @@ The first release deliberately avoids an LLM during distillation. Capture and co
 
 - Markdown is canonical; SQLite is disposable and rebuildable.
 - Hooks capture automatically and fail open if memory is unavailable.
-- `Stop` creates a checkpoint; `SessionEnd` finalizes the session.
+- `UserPromptSubmit` captures the user objective and injects relevant bounded context.
+- `Stop` checkpoints the turn and refreshes a durable Markdown snapshot without finalizing.
 - Raw runtime journals expire only after a durable Markdown note exists.
 - Explicit memories enter a review queue instead of silently rewriting knowledge.
 - MCP uses stdio: the AI host starts and stops the process automatically.
@@ -94,7 +95,7 @@ Preview without changing anything:
 atlas-memory setup codex --vault /absolute/path/to/your/vault --dry-run
 ```
 
-The default scope is the current project. This prevents two projects from accidentally recalling the same vault. Restart Codex after setup and approve its hook trust prompt if one appears.
+The default scope is derived from the current project directory name, not the vault name. Use `--project-name` to select an explicit durable scope or disambiguate projects with the same directory name. The Codex integration installs two hooks: `UserPromptSubmit` captures the prompt and recalls relevant context, while `Stop` records the latest assistant response and writes a durable checkpoint snapshot. Restart Codex after setup, open `/hooks`, and trust the two generated commands.
 
 Remove only the managed Codex integration while preserving Markdown memory:
 
@@ -136,7 +137,7 @@ Available MCP tools:
 Ready-to-adapt examples are provided in [`integrations/`](integrations/). Set `ATLAS_MEMORY_VAULT` in the environment that launches the host, then copy the relevant configuration.
 
 - Claude Code: merge [`integrations/claude/settings.hooks.json`](integrations/claude/settings.hooks.json) into `.claude/settings.json` or `~/.claude/settings.json`.
-- Codex: copy [`integrations/codex/hooks.json`](integrations/codex/hooks.json) to `.codex/hooks.json` or `~/.codex/hooks.json`, and enable the stable `hooks` feature if required by your version.
+- Codex: copy [`integrations/codex/hooks.json`](integrations/codex/hooks.json) to `.codex/hooks.json` or `~/.codex/hooks.json`. Hooks are enabled by default in current Codex releases.
 
 See [`docs/integrations.md`](docs/integrations.md) for lifecycle semantics, trust prompts, caveats, and manual fallback commands.
 
@@ -153,7 +154,8 @@ atlas-memory recover [--idle-minutes 120]
 atlas-memory cleanup [--apply]
 atlas-memory doctor
 atlas-memory mcp
-atlas-memory setup codex --vault VAULT [--project-root PROJECT] [--dry-run]
+atlas-memory setup codex --vault VAULT [--project-root PROJECT] [--project-name NAME] [--dry-run]
+atlas-memory setup verify codex [--project-root PROJECT]
 atlas-memory setup remove codex [--project-root PROJECT] [--dry-run]
 ```
 

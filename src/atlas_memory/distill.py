@@ -32,11 +32,23 @@ def _compact(value: Any, limit: int = 180) -> str:
     return value if len(value) <= limit else value[: limit - 1] + "…"
 
 
-def render_session_markdown(state: SessionState, events: list[MemoryEvent]) -> str:
+def render_session_markdown(
+    state: SessionState,
+    events: list[MemoryEvent],
+    *,
+    note_status: str = "distilled",
+) -> str:
+    if note_status not in {"checkpointed", "distilled"}:
+        raise ValueError(f"Unsupported session note status: {note_status}")
     prompts = [
         _compact(event.payload.get("prompt"), 300)
         for event in events
         if event.event_type == "turn.input" and event.payload.get("prompt")
+    ]
+    responses = [
+        _compact(event.payload.get("last_assistant_message"), 600)
+        for event in events
+        if event.event_type == "turn.checkpoint" and event.payload.get("last_assistant_message")
     ]
     tools = [
         str(event.payload.get("tool_name", "unknown"))
@@ -59,16 +71,21 @@ def render_session_markdown(state: SessionState, events: list[MemoryEvent]) -> s
     title_subject = prompts[0] if prompts else f"Session {state.session_id}"
     title = _compact(title_subject, 80)
 
+    lifecycle_timestamp = (
+        f"finalized_at: {_yaml_string(state.finalized_at or state.updated_at)}"
+        if note_status == "distilled"
+        else f"updated_at: {_yaml_string(state.updated_at)}"
+    )
     lines = [
         "---",
         f"id: {_yaml_string('session.' + state.session_id)}",
         "type: agent_session",
-        "status: distilled",
+        f"status: {note_status}",
         f"project: {_yaml_string(state.project)}",
         f"host: {_yaml_string(state.host)}",
         f"host_session_id: {_yaml_string(state.host_session_id)}",
         f"started_at: {_yaml_string(state.started_at)}",
-        f"finalized_at: {_yaml_string(state.finalized_at or state.updated_at)}",
+        lifecycle_timestamp,
         "source_of_truth: false",
         "---",
         "",
@@ -84,6 +101,10 @@ def render_session_markdown(state: SessionState, events: list[MemoryEvent]) -> s
         f"- {len(failures)} échecs d’outil capturés.",
         f"- {len(events)} événements enregistrés.",
     ]
+
+    if responses:
+        lines.extend(["", "## Réponses de l’agent", ""])
+        lines.extend(f"- {response}" for response in responses[-20:])
 
     if tool_counts:
         lines.extend(["", "## Outils utilisés", ""])

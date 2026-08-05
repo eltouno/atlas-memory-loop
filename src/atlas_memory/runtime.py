@@ -116,6 +116,12 @@ class RuntimeStore:
                 cwd=cwd,
                 timestamp=timestamp,
             )
+            if state.status == "distilled" and event_type != "session.finalize":
+                # A host can resume a previously closed thread. Reopen the
+                # lifecycle and cancel retention until it is finalized again.
+                state.finalized_at = None
+                state.distilled_to = None
+                state.purge_after = None
             # Hooks can occasionally be delivered twice by a host. Suppress only
             # consecutive duplicates so a legitimate repeated action later in the
             # session is still retained.

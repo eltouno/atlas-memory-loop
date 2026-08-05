@@ -18,7 +18,8 @@ from .util import atomic_write_json, atomic_write_text, isoformat, slugify
 
 MANAGED_PREFIX = "atlas-memory-loop"
 STATE_FILENAME = "atlas-memory-loop.json"
-HOOK_EVENTS = ("SessionStart", "Stop", "SessionEnd")
+HOOK_EVENTS = ("UserPromptSubmit", "Stop")
+LEGACY_HOOK_EVENTS = ("SessionStart", "SessionEnd")
 
 
 class SetupError(ValueError):
@@ -39,6 +40,7 @@ class CodexSetupPlan:
     project_name: str
     mcp_name: str
     action: str = "install"
+    previous_hook_commands: tuple[str, ...] = ()
 
     @property
     def targets(self) -> tuple[Path, ...]:
@@ -75,10 +77,15 @@ def _safe_name(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]+", "-", value).strip("-") or "vault"
 
 
+def _project_scope(root: Path) -> str:
+    return _safe_name(slugify(root.name))
+
+
 def build_codex_plan(
     *,
     vault: str | Path,
     project_root: str | Path | None = None,
+    project_name: str | None = None,
     python_executable: str | Path | None = None,
     action: str = "install",
 ) -> CodexSetupPlan:
@@ -101,53 +108,53 @@ def build_codex_plan(
         raise ConfigurationError(f"Python executable does not exist: {python_path}")
 
     codex_dir = root / ".codex"
-    project_name = _safe_name(slugify(vault_path.name))
+    state_path = codex_dir / STATE_FILENAME
+    vault_name = _safe_name(slugify(vault_path.name))
+    previous_hook_commands: tuple[str, ...] = ()
+    previous_state: Any = {}
+    if state_path.exists():
+        try:
+            previous_state = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            previous_state = {}
+        if not isinstance(previous_state, dict):
+            previous_state = {}
+        managed_hooks = previous_state.get("managed_hooks", [])
+        if isinstance(managed_hooks, list):
+            previous_hook_commands = tuple(
+                str(item["command"])
+                for item in managed_hooks
+                if isinstance(item, dict) and isinstance(item.get("command"), str)
+            )
+    stored_project_name = (
+        str(previous_state.get("project_name", "")).strip()
+        if isinstance(previous_state, dict)
+        else ""
+    )
+    resolved_project_name = (
+        _safe_name(slugify(project_name))
+        if project_name
+        else stored_project_name or _project_scope(root)
+    )
     return CodexSetupPlan(
         vault_path=vault_path,
         project_root=root,
         codex_dir=codex_dir,
         config_path=codex_dir / "config.toml",
         hooks_path=codex_dir / "hooks.json",
-        state_path=codex_dir / STATE_FILENAME,
+        state_path=state_path,
         codex_gitignore_path=codex_dir / ".gitignore",
         vault_gitignore_path=vault_path / ".gitignore",
         python_executable=python_path,
-        project_name=project_name,
-        mcp_name=f"atlas-memory-{project_name}",
+        project_name=resolved_project_name,
+        mcp_name=f"atlas-memory-{vault_name}",
         action=action,
+        previous_hook_commands=previous_hook_commands,
     )
 
 
 def _toml_string(value: str | Path) -> str:
     return json.dumps(str(value), ensure_ascii=False)
-
-
-def _enable_hooks_feature(content: str) -> str:
-    lines = content.splitlines()
-    section_start: int | None = None
-    section_end = len(lines)
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == "[features]":
-            section_start = index
-            continue
-        if section_start is not None and stripped.startswith("["):
-            section_end = index
-            break
-
-    if section_start is None:
-        base = content.rstrip()
-        prefix = f"{base}\n\n" if base else ""
-        return f"{prefix}[features]\nhooks = true\n"
-
-    for index in range(section_start + 1, section_end):
-        if re.match(r"^\s*hooks\s*=", lines[index]):
-            indent = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
-            lines[index] = f"{indent}hooks = true"
-            return "\n".join(lines).rstrip() + "\n"
-
-    lines.insert(section_end, "hooks = true")
-    return "\n".join(lines).rstrip() + "\n"
 
 
 def _managed_markers(mcp_name: str) -> tuple[str, str]:
@@ -175,7 +182,7 @@ def merge_codex_config(content: str, plan: CodexSetupPlan) -> str:
             "Rename or remove it before setup."
         )
 
-    base = _enable_hooks_feature(without_managed).rstrip()
+    base = without_managed.rstrip()
     start, end = _managed_markers(plan.mcp_name)
     block = "\n".join(
         [
@@ -189,7 +196,8 @@ def merge_codex_config(content: str, plan: CodexSetupPlan) -> str:
             end,
         ]
     )
-    return f"{base}\n\n{block}\n"
+    prefix = f"{base}\n\n" if base else ""
+    return f"{prefix}{block}\n"
 
 
 def remove_codex_config(content: str, mcp_name: str) -> str:
@@ -202,7 +210,12 @@ def _shell_command(arguments: list[str]) -> str:
     return shlex.join(arguments)
 
 
-def _hook_command(plan: CodexSetupPlan, event: str) -> str:
+def _hook_command(
+    plan: CodexSetupPlan,
+    event: str,
+    *,
+    project_name: str | None = None,
+) -> str:
     arguments = [
         str(plan.python_executable),
         "-m",
@@ -215,36 +228,46 @@ def _hook_command(plan: CodexSetupPlan, event: str) -> str:
         "--event",
         event,
         "--project",
-        plan.project_name,
+        project_name or plan.project_name,
     ]
-    if event == "SessionStart":
+    if event in {"SessionStart", "UserPromptSubmit"}:
         arguments.extend(["--inject", "--structured-output"])
     return _shell_command(arguments)
 
 
-def _is_managed_hook(group: Any) -> bool:
-    if not isinstance(group, dict):
-        return False
-    hooks = group.get("hooks", [])
-    if not isinstance(hooks, list):
-        return False
-    for hook in hooks:
-        if not isinstance(hook, dict):
+def _managed_hook_commands(plan: CodexSetupPlan) -> set[str]:
+    commands = set(plan.previous_hook_commands)
+    legacy_project_name = _safe_name(slugify(plan.vault_path.name))
+    for project_name in {plan.project_name, legacy_project_name}:
+        for event in (*HOOK_EVENTS, *LEGACY_HOOK_EVENTS):
+            commands.add(_hook_command(plan, event, project_name=project_name))
+    return commands
+
+
+def _remove_managed_handlers(groups: list[Any], managed_commands: set[str]) -> list[Any]:
+    retained_groups: list[Any] = []
+    for group in groups:
+        if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+            retained_groups.append(group)
             continue
-        command = str(hook.get("command", ""))
-        if "atlas_memory" in command and "--host codex" in command:
-            return True
-    return False
+        retained_hooks = [
+            hook
+            for hook in group["hooks"]
+            if not (isinstance(hook, dict) and str(hook.get("command", "")) in managed_commands)
+        ]
+        if retained_hooks:
+            retained_groups.append({**group, "hooks": retained_hooks})
+    return retained_groups
 
 
 def _hook_group(plan: CodexSetupPlan, event: str) -> dict[str, Any]:
     hook: dict[str, Any] = {
         "type": "command",
         "command": _hook_command(plan, event),
-        "timeout": 10 if event == "SessionStart" else 15 if event == "SessionEnd" else 5,
+        "timeout": 10 if event == "UserPromptSubmit" else 5,
     }
-    if event == "SessionStart":
-        hook["statusMessage"] = "Loading Atlas memory"
+    if event == "UserPromptSubmit":
+        hook["statusMessage"] = "Recalling Atlas memory"
     return {"hooks": [hook]}
 
 
@@ -264,17 +287,29 @@ def merge_codex_hooks(content: str, plan: CodexSetupPlan) -> str:
         raise SetupError("Existing 'hooks' value must be a JSON object")
     data.setdefault("description", "Project hooks including Atlas Memory Loop.")
 
+    managed_commands = _managed_hook_commands(plan)
+    # Remove only exact commands installed by this or a known previous setup
+    # version. Foreign handlers remain intact, even inside the same group.
+    for event in list(hooks):
+        groups = hooks[event]
+        if not isinstance(groups, list):
+            continue
+        retained = _remove_managed_handlers(groups, managed_commands)
+        if retained:
+            hooks[event] = retained
+        else:
+            del hooks[event]
+
     for event in HOOK_EVENTS:
         groups = hooks.setdefault(event, [])
         if not isinstance(groups, list):
             raise SetupError(f"Existing hook event '{event}' must contain a JSON array")
-        hooks[event] = [group for group in groups if not _is_managed_hook(group)]
-        hooks[event].append(_hook_group(plan, event))
+        groups.append(_hook_group(plan, event))
 
     return json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
-def remove_codex_hooks(content: str) -> str:
+def remove_codex_hooks(content: str, plan: CodexSetupPlan) -> str:
     if not content.strip():
         return ""
     try:
@@ -285,11 +320,12 @@ def remove_codex_hooks(content: str) -> str:
         raise SetupError("Existing hooks configuration has an unsupported structure")
 
     hooks = data.get("hooks", {})
+    managed_commands = _managed_hook_commands(plan)
     for event in list(hooks):
         groups = hooks[event]
         if not isinstance(groups, list):
             continue
-        retained = [group for group in groups if not _is_managed_hook(group)]
+        retained = _remove_managed_handlers(groups, managed_commands)
         if retained:
             hooks[event] = retained
         else:
@@ -361,8 +397,12 @@ def apply_codex_setup(plan: CodexSetupPlan) -> dict[str, Any]:
             "vault": str(plan.vault_path),
             "project_root": str(plan.project_root),
             "python_executable": str(plan.python_executable),
+            "project_name": plan.project_name,
             "mcp_name": plan.mcp_name,
             "managed_hook_events": list(HOOK_EVENTS),
+            "managed_hooks": [
+                {"event": event, "command": _hook_command(plan, event)} for event in HOOK_EVENTS
+            ],
             "last_backup": str(backup_dir),
         }
         atomic_write_json(plan.state_path, state)
@@ -412,7 +452,13 @@ def build_codex_remove_plan(project_root: str | Path | None = None) -> CodexSetu
         raise SetupError(f"Setup state is missing: {', '.join(missing)}")
     vault_path = Path(state["vault"]).expanduser().resolve()
     codex_dir = root / ".codex"
-    project_name = _safe_name(slugify(vault_path.name))
+    project_name = str(state.get("project_name") or _project_scope(root))
+    managed_hooks = state.get("managed_hooks", [])
+    previous_hook_commands = tuple(
+        str(item["command"])
+        for item in managed_hooks
+        if isinstance(item, dict) and isinstance(item.get("command"), str)
+    )
     return CodexSetupPlan(
         vault_path=vault_path,
         project_root=root,
@@ -426,12 +472,13 @@ def build_codex_remove_plan(project_root: str | Path | None = None) -> CodexSetu
         project_name=project_name,
         mcp_name=str(state["mcp_name"]),
         action="remove",
+        previous_hook_commands=previous_hook_commands,
     )
 
 
 def apply_codex_remove(plan: CodexSetupPlan) -> dict[str, Any]:
     config = remove_codex_config(_read(plan.config_path), plan.mcp_name)
-    hooks = remove_codex_hooks(_read(plan.hooks_path))
+    hooks = remove_codex_hooks(_read(plan.hooks_path), plan)
     backup_dir, manifest = _backup_targets(plan)
     try:
         atomic_write_text(plan.config_path, config)
@@ -456,3 +503,78 @@ def require_codex_cli() -> str:
     if not executable:
         raise SetupError("Codex CLI was not found in PATH")
     return executable
+
+
+def verify_codex_setup(project_root: str | Path | None = None) -> dict[str, Any]:
+    """Verify generated files and the local executables without firing a hook."""
+
+    plan = build_codex_remove_plan(project_root)
+    config = _read(plan.config_path)
+    if _managed_markers(plan.mcp_name)[0] not in config:
+        raise SetupError("Managed MCP configuration is missing")
+
+    try:
+        hook_document = json.loads(_read(plan.hooks_path))
+    except json.JSONDecodeError as exc:
+        raise SetupError(f"Invalid hooks JSON: {exc}") from exc
+    hooks = hook_document.get("hooks") if isinstance(hook_document, dict) else None
+    if not isinstance(hooks, dict):
+        raise SetupError("Hooks configuration is missing its 'hooks' object")
+
+    missing_events: list[str] = []
+    for event in HOOK_EVENTS:
+        groups = hooks.get(event, [])
+        commands = {
+            str(handler.get("command", ""))
+            for group in groups
+            if isinstance(group, dict) and isinstance(group.get("hooks"), list)
+            for handler in group["hooks"]
+            if isinstance(handler, dict)
+        }
+        if _hook_command(plan, event) not in commands:
+            missing_events.append(event)
+    if missing_events:
+        raise SetupError(f"Managed hooks are missing: {', '.join(missing_events)}")
+
+    try:
+        import_check = subprocess.run(
+            [str(plan.python_executable), "-c", "import atlas_memory"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SetupError(f"Atlas Python environment is unavailable: {exc}") from exc
+    if import_check.returncode != 0:
+        detail = import_check.stderr.strip() or "import atlas_memory failed"
+        raise SetupError(f"Atlas Python environment is invalid: {detail}")
+
+    codex = require_codex_cli()
+    try:
+        feature_check = subprocess.run(
+            [codex, "features", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SetupError(f"Codex feature inspection failed: {exc}") from exc
+    if feature_check.returncode != 0:
+        detail = feature_check.stderr.strip() or "codex features list failed"
+        raise SetupError(f"Codex feature inspection failed: {detail}")
+    hooks_enabled = bool(re.search(r"^hooks\s+\S+\s+true\s*$", feature_check.stdout, re.MULTILINE))
+    if not hooks_enabled:
+        raise SetupError("Codex reports that the hooks feature is unavailable or disabled")
+
+    return {
+        "status": "verified",
+        "host": "codex",
+        "project_root": str(plan.project_root),
+        "project_name": plan.project_name,
+        "vault": str(plan.vault_path),
+        "hooks": list(HOOK_EVENTS),
+        "hooks_enabled": True,
+        "trust_review": "Restart Codex in the project and use /hooks to trust both commands.",
+    }

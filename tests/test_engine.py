@@ -45,6 +45,12 @@ class EngineLifecycleTests(unittest.TestCase):
         self.assertEqual(state.status, "checkpointed")
         self.assertIsNone(state.distilled_to)
 
+        snapshot = self.engine.snapshot(event.atlas_session_id)
+        state = self.engine.runtime.load_state(event.atlas_session_id)
+        self.assertEqual(state.status, "checkpointed")
+        self.assertIsNone(state.distilled_to)
+        self.assertIn("status: checkpointed", snapshot.read_text(encoding="utf-8"))
+
         self.engine.capture_hook(
             host="codex",
             hook_name="SessionEnd",
@@ -54,7 +60,34 @@ class EngineLifecycleTests(unittest.TestCase):
         state = self.engine.runtime.load_state(event.atlas_session_id)
         self.assertEqual(state.status, "distilled")
         self.assertTrue(note.exists())
+        self.assertIn("status: distilled", note.read_text(encoding="utf-8"))
         self.assertIn("Implement durable memory", note.read_text(encoding="utf-8"))
+
+    def test_resuming_a_distilled_session_cancels_pending_retention(self) -> None:
+        self.engine.record(
+            event_type="session.open",
+            host="codex",
+            host_session_id="resumed",
+            project="atlas",
+            cwd=str(self.root),
+        )
+        session_id = build_session_id("codex", "resumed")
+        self.engine.finalize(session_id)
+
+        self.engine.record(
+            event_type="turn.input",
+            host="codex",
+            host_session_id="resumed",
+            project="atlas",
+            cwd=str(self.root),
+            payload={"prompt": "Continue the session"},
+        )
+
+        state = self.engine.runtime.load_state(session_id)
+        self.assertEqual(state.status, "open")
+        self.assertIsNone(state.finalized_at)
+        self.assertIsNone(state.distilled_to)
+        self.assertIsNone(state.purge_after)
 
     def test_capture_is_deduplicated_and_redacted(self) -> None:
         payload = {

@@ -21,6 +21,7 @@ from .setup import (
     build_codex_plan,
     build_codex_remove_plan,
     require_codex_cli,
+    verify_codex_setup,
 )
 
 logger = logging.getLogger("atlas_memory")
@@ -115,6 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup_codex = setup_sub.add_parser("codex", help="Configure Codex for one project")
     setup_codex.add_argument("--vault", default=argparse.SUPPRESS)
     setup_codex.add_argument("--project-root", default=str(Path.cwd()))
+    setup_codex.add_argument("--project-name")
     setup_codex.add_argument("--yes", action="store_true", help="Apply the displayed plan")
     setup_codex.add_argument(
         "--dry-run", action="store_true", help="Display without changing files"
@@ -126,6 +128,9 @@ def build_parser() -> argparse.ArgumentParser:
     setup_remove.add_argument(
         "--dry-run", action="store_true", help="Display without changing files"
     )
+    setup_verify = setup_sub.add_parser("verify", help="Verify managed host configuration")
+    setup_verify.add_argument("host", choices=("codex",))
+    setup_verify.add_argument("--project-root", default=str(Path.cwd()))
     return parser
 
 
@@ -141,14 +146,18 @@ def _confirm_setup(args: argparse.Namespace, preview: str) -> bool:
 
 
 def _handle_setup(args: argparse.Namespace) -> int:
-    require_codex_cli()
     if args.setup_command == "codex":
         if not getattr(args, "vault", None):
             raise ConfigurationError("setup codex requires --vault")
-        plan = build_codex_plan(vault=args.vault, project_root=args.project_root)
+        plan = build_codex_plan(
+            vault=args.vault,
+            project_root=args.project_root,
+            project_name=args.project_name,
+        )
         if not _confirm_setup(args, plan.preview()):
             _json({"status": "planned" if args.dry_run else "cancelled"})
             return 0
+        require_codex_cli()
         _json(apply_codex_setup(plan))
         return 0
     if args.setup_command == "remove" and args.host == "codex":
@@ -157,6 +166,9 @@ def _handle_setup(args: argparse.Namespace) -> int:
             _json({"status": "planned" if args.dry_run else "cancelled"})
             return 0
         _json(apply_codex_remove(plan))
+        return 0
+    if args.setup_command == "verify" and args.host == "codex":
+        _json(verify_codex_setup(args.project_root))
         return 0
     raise SetupError("Unsupported setup operation")
 
@@ -174,7 +186,9 @@ def _handle_hook(args: argparse.Namespace, engine: MemoryEngine) -> int:
             project=args.project,
         )
         event_type = normalize_hook_name(native_name)
-        if event_type == "session.finalize":
+        if event_type == "turn.checkpoint":
+            engine.snapshot(event.atlas_session_id)
+        elif event_type == "session.finalize":
             engine.finalize(event.atlas_session_id)
         if args.inject or event_type in {"context.refresh"}:
             project = extract_project(payload, args.project)
@@ -218,10 +232,13 @@ def run(args: argparse.Namespace) -> int:
         _json(engine.initialize())
         return 0
 
-    engine.initialize()
-
     if args.command == "hook":
+        # Capture hooks stay off the full-vault indexing path. Recall performs
+        # one sync when needed; Stop only appends and snapshots the session.
+        settings.ensure_directories()
         return _handle_hook(args, engine)
+
+    engine.initialize()
     if args.command == "session":
         if args.session_command == "finalize":
             session_id = build_session_id(args.host, args.session_id)

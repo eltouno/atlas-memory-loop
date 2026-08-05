@@ -50,7 +50,7 @@ class CliTests(unittest.TestCase):
         note.write_text("# Canonical memory\n\nMarkdown remains canonical.\n", encoding="utf-8")
         payload = json.dumps(
             {
-                "hook_event_name": "SessionStart",
+                "hook_event_name": "UserPromptSubmit",
                 "session_id": "session-structured",
                 "cwd": str(self.vault),
                 "prompt": "canonical Markdown",
@@ -66,8 +66,63 @@ class CliTests(unittest.TestCase):
         )
         response = json.loads(result.stdout)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(response["hookSpecificOutput"]["hookEventName"], "SessionStart")
+        self.assertEqual(response["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit")
         self.assertIn("Canonical memory", response["hookSpecificOutput"]["additionalContext"])
+
+    def test_prompt_and_stop_create_a_contentful_checkpoint_snapshot(self) -> None:
+        prompt_payload = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": "session-stop",
+                "cwd": str(self.vault),
+                "prompt": "Implement durable memory",
+            }
+        )
+        prompt_result = self.run_cli(
+            "hook",
+            "--host",
+            "codex",
+            "--event",
+            "UserPromptSubmit",
+            "--project",
+            "atlas",
+            stdin=prompt_payload,
+        )
+        payload = json.dumps(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "session-stop",
+                "cwd": str(self.vault),
+                "last_assistant_message": "Durable memory is implemented and tested.",
+            }
+        )
+
+        result = self.run_cli(
+            "hook",
+            "--host",
+            "codex",
+            "--event",
+            "Stop",
+            "--project",
+            "atlas",
+            stdin=payload,
+        )
+
+        self.assertEqual(prompt_result.returncode, 0, prompt_result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        notes = list((self.vault / "70_State" / "agent_sessions").rglob("*.md"))
+        self.assertEqual(len(notes), 1)
+        note = notes[0].read_text(encoding="utf-8")
+        self.assertIn("status: checkpointed", note)
+        self.assertIn("Implement durable memory", note)
+        self.assertIn("Durable memory is implemented and tested.", note)
+
+        state_files = list((self.vault / ".atlas-runtime" / "sessions").glob("*/session.json"))
+        self.assertEqual(len(state_files), 1)
+        state = json.loads(state_files[0].read_text(encoding="utf-8"))
+        self.assertEqual(state["status"], "checkpointed")
+        self.assertIsNone(state["distilled_to"])
+        self.assertIsNone(state["purge_after"])
 
 
 if __name__ == "__main__":
