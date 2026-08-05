@@ -69,6 +69,31 @@ class CliTests(unittest.TestCase):
         self.assertEqual(response["hookSpecificOutput"]["hookEventName"], "SessionStart")
         self.assertIn("Canonical memory", response["hookSpecificOutput"]["additionalContext"])
 
+    def test_stop_hook_checkpoints_and_distills_immediately(self) -> None:
+        payload = json.dumps(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "session-stop",
+                "cwd": str(self.vault),
+            }
+        )
+
+        result = self.run_cli(
+            "hook",
+            "--host",
+            "codex",
+            "--event",
+            "Stop",
+            "--project",
+            "atlas",
+            stdin=payload,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        notes = list((self.vault / "70_State" / "agent_sessions").rglob("*.md"))
+        self.assertEqual(len(notes), 1)
+        self.assertIn("status: distilled", notes[0].read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

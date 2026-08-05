@@ -18,7 +18,7 @@ from .util import atomic_write_json, atomic_write_text, isoformat, slugify
 
 MANAGED_PREFIX = "atlas-memory-loop"
 STATE_FILENAME = "atlas-memory-loop.json"
-HOOK_EVENTS = ("SessionStart", "Stop", "SessionEnd")
+HOOK_EVENTS = ("SessionStart", "Stop")
 
 
 class SetupError(ValueError):
@@ -241,7 +241,7 @@ def _hook_group(plan: CodexSetupPlan, event: str) -> dict[str, Any]:
     hook: dict[str, Any] = {
         "type": "command",
         "command": _hook_command(plan, event),
-        "timeout": 10 if event == "SessionStart" else 3 if event == "SessionEnd" else 5,
+        "timeout": 10 if event == "SessionStart" else 5,
     }
     if event == "SessionStart":
         hook["statusMessage"] = "Loading Atlas memory"
@@ -264,12 +264,23 @@ def merge_codex_hooks(content: str, plan: CodexSetupPlan) -> str:
         raise SetupError("Existing 'hooks' value must be a JSON object")
     data.setdefault("description", "Project hooks including Atlas Memory Loop.")
 
+    # Remove every Atlas hook from previous setup versions first. This also
+    # migrates the former SessionEnd hook away while preserving foreign hooks.
+    for event in list(hooks):
+        groups = hooks[event]
+        if not isinstance(groups, list):
+            continue
+        retained = [group for group in groups if not _is_managed_hook(group)]
+        if retained:
+            hooks[event] = retained
+        else:
+            del hooks[event]
+
     for event in HOOK_EVENTS:
         groups = hooks.setdefault(event, [])
         if not isinstance(groups, list):
             raise SetupError(f"Existing hook event '{event}' must contain a JSON array")
-        hooks[event] = [group for group in groups if not _is_managed_hook(group)]
-        hooks[event].append(_hook_group(plan, event))
+        groups.append(_hook_group(plan, event))
 
     return json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 

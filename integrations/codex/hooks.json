@@ -22,17 +22,6 @@
           }
         ]
       }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "atlas-memory hook --host codex --event SessionEnd",
-            "timeout": 3
-          }
-        ]
-      }
     ]
   }
 }

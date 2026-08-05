@@ -59,7 +59,7 @@ class CodexSetupTests(unittest.TestCase):
         self.assertIn("hooks = true", config)
         self.assertIn("[mcp_servers.atlas-memory-vault]", config)
         self.assertEqual(len(hooks["Stop"]), 2)
-        self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["timeout"], 3)
+        self.assertNotIn("SessionEnd", hooks)
         self.assertTrue(self.plan.state_path.exists())
         self.assertTrue((self.vault / ".atlas-runtime" / "index" / "atlas.sqlite").exists())
         self.assertIn(".atlas-runtime/", self.plan.vault_gitignore_path.read_text())
@@ -72,8 +72,41 @@ class CodexSetupTests(unittest.TestCase):
         config = self.plan.config_path.read_text(encoding="utf-8")
         hooks = json.loads(self.plan.hooks_path.read_text(encoding="utf-8"))["hooks"]
         self.assertEqual(config.count("# >>> atlas-memory-loop:atlas-memory-vault"), 1)
-        for event in ("SessionStart", "Stop", "SessionEnd"):
+        for event in ("SessionStart", "Stop"):
             self.assertEqual(len(hooks[event]), 1)
+        self.assertNotIn("SessionEnd", hooks)
+
+    def test_setup_removes_legacy_session_end_but_preserves_foreign_hook(self) -> None:
+        self.plan.codex_dir.mkdir()
+        self.plan.hooks_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "SessionEnd": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": (
+                                            "python -m atlas_memory hook --host codex "
+                                            "--event SessionEnd"
+                                        ),
+                                    }
+                                ]
+                            },
+                            {"hooks": [{"type": "command", "command": "echo foreign"}]},
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        apply_codex_setup(self.plan)
+
+        hooks = json.loads(self.plan.hooks_path.read_text(encoding="utf-8"))["hooks"]
+        self.assertEqual(len(hooks["SessionEnd"]), 1)
+        self.assertEqual(hooks["SessionEnd"][0]["hooks"][0]["command"], "echo foreign")
 
     def test_setup_refuses_unmanaged_mcp_name_collision(self) -> None:
         self.plan.codex_dir.mkdir()

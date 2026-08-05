@@ -174,7 +174,10 @@ def _handle_hook(args: argparse.Namespace, engine: MemoryEngine) -> int:
             project=args.project,
         )
         event_type = normalize_hook_name(native_name)
-        if event_type == "session.finalize":
+        # Persist a durable Markdown snapshot on every completed turn. Codex no
+        # longer needs a separate SessionEnd hook, which is harder to approve
+        # and may run long after the user leaves a task.
+        if event_type in {"turn.checkpoint", "session.finalize"}:
             engine.finalize(event.atlas_session_id)
         if args.inject or event_type in {"context.refresh"}:
             project = extract_project(payload, args.project)

@@ -22,7 +22,7 @@ The first release deliberately avoids an LLM during distillation. Capture and co
 
 - Markdown is canonical; SQLite is disposable and rebuildable.
 - Hooks capture automatically and fail open if memory is unavailable.
-- `Stop` creates a checkpoint; `SessionEnd` finalizes the session.
+- `Stop` creates a checkpoint and immediately refreshes the durable Markdown session note.
 - Raw runtime journals expire only after a durable Markdown note exists.
 - Explicit memories enter a review queue instead of silently rewriting knowledge.
 - MCP uses stdio: the AI host starts and stops the process automatically.
@@ -94,7 +94,7 @@ Preview without changing anything:
 atlas-memory setup codex --vault /absolute/path/to/your/vault --dry-run
 ```
 
-The default scope is the current project. This prevents two projects from accidentally recalling the same vault. Restart Codex after setup and approve its hook trust prompt if one appears.
+The default scope is the current project. This prevents two projects from accidentally recalling the same vault. The Codex integration deliberately installs only two hooks: `SessionStart` loads bounded context and `Stop` saves a durable Markdown snapshot. Restart Codex after setup and approve its hook trust prompt if one appears.
 
 Remove only the managed Codex integration while preserving Markdown memory:
 

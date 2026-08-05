@@ -58,9 +58,9 @@ Copy `integrations/codex/hooks.json` to `.codex/hooks.json` or merge it into `~/
 hooks = true
 ```
 
-The conservative Codex sample uses the lifecycle events confirmed in current public examples: `SessionStart`, `Stop`, and `SessionEnd`. Add tool hooks only after confirming that your installed Codex version exposes them.
+The Codex sample deliberately uses only `SessionStart` and `Stop`. `SessionStart` injects bounded context; `Stop` checkpoints the turn and immediately refreshes the durable Markdown session note. This avoids a third trust prompt and does not depend on the delayed `SessionEnd` lifecycle.
 
-Codex limits `SessionEnd` command hooks to a three-second timeout. Keep finalization deterministic and local so it completes within that host limit.
+`SessionEnd` remains supported by the generic hook adapter for hosts that need it, but the guided Codex setup does not install it.
 
 Codex hook support is evolving. Project-local hook discovery may differ between releases and worktree modes; a user-level configuration is the practical fallback. Run `codex features list` and use the host's own diagnostics after upgrades.
 
