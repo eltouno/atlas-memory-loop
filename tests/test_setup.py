@@ -69,6 +69,11 @@ class CodexSetupTests(unittest.TestCase):
         self.assertTrue((self.vault / ".atlas-runtime" / "index" / "atlas.sqlite").exists())
         self.assertIn(".atlas-runtime/", self.plan.vault_gitignore_path.read_text())
         self.assertIn("backups/", self.plan.codex_gitignore_path.read_text())
+        self.assertEqual(result["verification"]["automated_checks"], "pending")
+        self.assertEqual(
+            [action["id"] for action in result["manual_actions"]],
+            ["restart_codex", "trust_hooks"],
+        )
 
     def test_setup_is_idempotent(self) -> None:
         apply_codex_setup(self.plan)
@@ -260,6 +265,12 @@ class CodexSetupTests(unittest.TestCase):
         self.assertEqual(result["status"], "verified")
         self.assertEqual(result["hooks"], ["UserPromptSubmit", "Stop"])
         self.assertTrue(result["hooks_enabled"])
+        self.assertEqual(set(result["automated_checks"].values()), {"passed"})
+        self.assertIsNone(result["fully_operational"])
+        self.assertEqual(
+            [action["id"] for action in result["manual_actions"]],
+            ["restart_codex", "trust_hooks", "fresh_host_smoke_test"],
+        )
         self.assertEqual(run_command.call_count, 2)
 
 
