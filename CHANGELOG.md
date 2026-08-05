@@ -6,3 +6,4 @@
 - Add temporary JSONL journals with deterministic Markdown distillation.
 - Add SQLite FTS5/BM25 indexing and bounded context recall.
 - Add MCP stdio tools and Claude/Codex integration examples.
+- Support the declared Python 3.10 minimum by avoiding `datetime.UTC`.

@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import Settings
@@ -43,7 +43,7 @@ class MarkdownStore:
         try:
             started = datetime.fromisoformat(state.started_at.replace("Z", "+00:00"))
         except ValueError:
-            started = datetime.now(UTC)
+            started = datetime.now(timezone.utc)
         return (
             self.settings.session_notes_path
             / f"{started.year:04d}"
