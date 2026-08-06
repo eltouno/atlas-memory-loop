@@ -55,8 +55,11 @@ found, ask for its location. If several are found, show their names and paths an
 ask the user to choose one.
 
 Derive the default project scope from the project directory name. Ask for a
-different name only when an existing Atlas scope must be preserved or two projects
+different name only when an existing Memory Loop scope must be preserved or two projects
 would otherwise share the same scope.
+
+Use **Atlas Memory Loop** or **Memory Loop** in every user-facing explanation.
+Never use **Atlas** alone as the product name.
 
 ## Phase 2: package installation
 

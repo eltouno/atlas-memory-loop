@@ -2,6 +2,16 @@
 
 Atlas Memory Loop is a Markdown-first persistent memory layer for agentic hosts.
 
+## Product naming
+
+- Use **Atlas Memory Loop** as the full product name and **Memory Loop** as its
+  short name.
+- Never use **Atlas** alone as a synonym for the product. Atlas may refer to a
+  user's vault, workspace, or wider knowledge system.
+- Keep compatibility identifiers such as `atlas-memory`, `atlas_memory`,
+  `.atlas-runtime`, and `<atlas-context>` unchanged unless a dedicated migration
+  explicitly replaces them.
+
 ## Agent-assisted installation
 
 When a user asks to install, configure, upgrade, migrate, verify, or remove Atlas

@@ -72,7 +72,7 @@ def create_server(settings: Settings | None = None) -> Any:
         project: str,
         cwd: str = "",
     ) -> dict[str, Any]:
-        """Open or resume an Atlas memory session."""
+        """Open or resume a Memory Loop session."""
 
         event, duplicate = engine.record(
             event_type="session.open",

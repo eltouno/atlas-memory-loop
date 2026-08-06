@@ -1,5 +1,11 @@
 # Architecture
 
+## Product terminology
+
+Use **Atlas Memory Loop** or **Memory Loop** for the product. Do not shorten the
+product name to **Atlas**. Existing protocol and filesystem identifiers retain
+their `atlas-*` names for backward compatibility.
+
 ## One loop, two integration surfaces
 
 Atlas Memory Loop separates automatic observation from deliberate agent actions.
@@ -35,7 +41,7 @@ Hooks and MCP are complementary, not competing implementations:
 
 ### 1. Runtime journal
 
-Each host session maps deterministically to one Atlas session ID. Events are appended to `events.jsonl`; `session.json` tracks status, counts, timestamps, output path, and retention.
+Each host session maps deterministically to one Memory Loop session ID. Events are appended to `events.jsonl`; `session.json` tracks status, counts, timestamps, output path, and retention.
 
 This layer is optimized for safe writes, recovery, and debugging. It is not the long-term memory and should normally be excluded from Git.
 

@@ -6,6 +6,16 @@ Atlas Memory Loop captures lifecycle events through host hooks, keeps a short-li
 
 > Status: alpha. The storage model and CLI are usable; host hook APIs can still evolve.
 
+## Naming
+
+**Atlas Memory Loop** is the full product name. **Memory Loop** is the accepted
+short name. **Atlas** alone is not a synonym for this product: it may describe a
+user's vault, workspace, or broader knowledge system.
+
+Technical identifiers such as the `atlas-memory` command, the `atlas_memory`
+Python package, `.atlas-runtime`, and the `<atlas-context>` envelope remain stable
+for compatibility.
+
 ## Easiest install: ask your AI agent
 
 Give an AI coding agent access to the project you want to connect, then send it
@@ -128,6 +138,27 @@ Remove only the managed Codex integration while preserving Markdown memory:
 ```bash
 atlas-memory setup remove codex
 ```
+
+## Optional: initialize the first memories
+
+The repository includes the
+[`memory-loop-startup`](skills/memory-loop-startup/SKILL.md) skill for a new or
+sparse vault. Ask Codex to install the skill directly from
+`https://github.com/eltouno/atlas-memory-loop/tree/main/skills/memory-loop-startup`,
+then invoke it with `$memory-loop-startup`. The skill is separate from the
+automatic session hooks and runs only when requested.
+
+The skill first scans existing memory, then guides the user through four domains:
+
+1. user and collaboration;
+2. project and outcomes;
+3. environment and methods;
+4. memory governance.
+
+Each stage follows the same review gate: the agent asks the question series,
+waits for the answers, reformulates durable knowledge, obtains explicit
+validation, and only then creates a Memory Loop candidate. Final health and
+recall checks must pass before initialization is reported as complete.
 
 ## MCP stdio
 

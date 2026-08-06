@@ -8,7 +8,7 @@
             "type": "command",
             "command": "atlas-memory hook --host claude --event SessionStart --inject --structured-output",
             "timeout": 10,
-            "statusMessage": "Loading Atlas memory"
+            "statusMessage": "Loading Memory Loop context"
           }
         ]
       }
