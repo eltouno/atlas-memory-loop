@@ -1,0 +1,4 @@
+interface:
+  display_name: "Memory Loop Startup"
+  short_description: "Initialiser une mémoire utile en quatre étapes"
+  default_prompt: "Utilise $memory-loop-startup pour initialiser Memory Loop en quatre étapes guidées."

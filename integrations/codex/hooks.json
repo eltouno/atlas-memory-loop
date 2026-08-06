@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "atlas-memory hook --host codex --event UserPromptSubmit --inject --structured-output",
-            "statusMessage": "Recalling Atlas memory",
+            "statusMessage": "Recalling Memory Loop context",
             "timeout": 10
           }
         ]

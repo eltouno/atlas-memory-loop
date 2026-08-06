@@ -2,6 +2,10 @@
 
 ## 0.2.0 - Unreleased
 
+- Define **Atlas Memory Loop** and **Memory Loop** as the only user-facing
+  product names while retaining existing technical identifiers for compatibility.
+- Add the `memory-loop-startup` skill with a scan, four sequential question and
+  validation stages, reviewable candidates, and final health plus recall checks.
 - Add a repository-native, agent-assisted installation protocol with explicit
   approval boundaries, automated verification, and fresh-host completion criteria.
 - Expose structured verification and remaining manual actions in Codex setup output.

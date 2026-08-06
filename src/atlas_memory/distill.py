@@ -131,7 +131,7 @@ def render_session_markdown(
             "",
             "## Provenance",
             "",
-            f"- Session Atlas : `{state.session_id}`",
+            f"- Session Memory Loop : `{state.session_id}`",
             f"- Journal brut : `.atlas-runtime/sessions/{state.session_id}/events.jsonl`",
             f"- Date : `{started_date}`",
             "",

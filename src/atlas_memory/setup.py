@@ -294,7 +294,7 @@ def _hook_group(plan: CodexSetupPlan, event: str) -> dict[str, Any]:
         "timeout": 10 if event == "UserPromptSubmit" else 5,
     }
     if event == "UserPromptSubmit":
-        hook["statusMessage"] = "Recalling Atlas memory"
+        hook["statusMessage"] = "Recalling Memory Loop context"
     return {"hooks": [hook]}
 
 
@@ -625,10 +625,10 @@ def verify_codex_setup(project_root: str | Path | None = None) -> dict[str, Any]
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise SetupError(f"Atlas Python environment is unavailable: {exc}") from exc
+        raise SetupError(f"Memory Loop Python environment is unavailable: {exc}") from exc
     if import_check.returncode != 0:
         detail = import_check.stderr.strip() or "import atlas_memory failed"
-        raise SetupError(f"Atlas Python environment is invalid: {detail}")
+        raise SetupError(f"Memory Loop Python environment is invalid: {detail}")
 
     codex = require_codex_cli()
     try:
