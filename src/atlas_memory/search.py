@@ -122,7 +122,8 @@ class SearchIndex:
         limit = max(1, min(limit, 50))
         tokens = TOKEN_RE.findall(query.lower())
         with closing(self.connect()) as connection:
-            filters = ["d.status NOT IN ('obsolete', 'archived')"]
+            # Pending candidates are proposals for human review, never recallable knowledge.
+            filters = ["d.status NOT IN ('obsolete', 'archived', 'pending')"]
             parameters: list[object] = []
             if project:
                 filters.append("(d.project = ? OR d.project = 'global')")

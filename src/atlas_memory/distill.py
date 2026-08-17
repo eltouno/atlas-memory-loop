@@ -5,7 +5,8 @@ from collections import Counter
 from collections.abc import Iterable
 from typing import Any
 
-from .models import MemoryEvent, SessionState
+from .candidates import extract_memory_candidates
+from .models import MemoryCandidate, MemoryEvent, SessionState
 
 
 def _yaml_string(value: str) -> str:
@@ -37,6 +38,7 @@ def render_session_markdown(
     events: list[MemoryEvent],
     *,
     note_status: str = "distilled",
+    candidates: list[MemoryCandidate] | None = None,
 ) -> str:
     if note_status not in {"checkpointed", "distilled"}:
         raise ValueError(f"Unsupported session note status: {note_status}")
@@ -70,6 +72,11 @@ def render_session_markdown(
     started_date = state.started_at[:10]
     title_subject = prompts[0] if prompts else f"Session {state.session_id}"
     title = _compact(title_subject, 80)
+    candidates = (
+        extract_memory_candidates(events, source_session=state.session_id)
+        if candidates is None
+        else candidates
+    )
 
     lifecycle_timestamp = (
         f"finalized_at: {_yaml_string(state.finalized_at or state.updated_at)}"
@@ -121,14 +128,28 @@ def render_session_markdown(
         lines.extend(["", "## Demandes complémentaires", ""])
         lines.extend(f"- {prompt}" for prompt in prompts[1:20])
 
+    lines.extend(["", "## Candidats à la mémoire durable", ""])
+    if candidates:
+        for candidate in candidates:
+            lines.extend(
+                [
+                    f"### {candidate.candidate_type}",
+                    "",
+                    f"- **Signal observé** : {candidate.signal}",
+                    f"- **Mémoire proposée** : {candidate.proposed_memory}",
+                    "- **Statut** : `pending` — revue humaine requise.",
+                    "",
+                ]
+            )
+    else:
+        lines.extend(
+            [
+                "Aucun signal assez fort pour proposer automatiquement une mémoire durable.",
+                "",
+            ]
+        )
     lines.extend(
         [
-            "",
-            "## Candidats à la mémoire durable",
-            "",
-            "Aucun candidat automatique en V1. Utiliser `atlas-memory remember` "
-            "ou l’outil MCP `atlas_remember`.",
-            "",
             "## Provenance",
             "",
             f"- Session Memory Loop : `{state.session_id}`",

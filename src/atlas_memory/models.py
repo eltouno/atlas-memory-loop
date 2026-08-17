@@ -70,3 +70,11 @@ class RecallResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryCandidate:
+    source_session: str
+    signal: str
+    proposed_memory: str
+    candidate_type: str

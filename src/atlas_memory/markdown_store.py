@@ -63,14 +63,20 @@ class MarkdownStore:
         kind: str,
         project: str,
         source_session_id: str | None = None,
+        signal: str | None = None,
     ) -> Path:
-        digest = hashlib.sha256(content.encode()).hexdigest()[:10]
+        identity = f"{source_session_id}\0{content}" if source_session_id else content
+        digest = hashlib.sha256(identity.encode()).hexdigest()[:10]
         candidate_id = f"candidate-{slugify(kind)}-{digest}"
         path = self.settings.candidates_path / f"{candidate_id}.md"
+        # Never overwrite a candidate that may already contain a human review decision.
+        if path.exists():
+            return path
         now = isoformat()
         source_line = (
             f"source_session: {json.dumps(source_session_id)}\n" if source_session_id else ""
         )
+        signal_section = f"## Signal observé\n\n{signal.strip()}\n\n" if signal else ""
         markdown = (
             "---\n"
             f"id: {json.dumps('memory.' + candidate_id)}\n"
@@ -83,6 +89,7 @@ class MarkdownStore:
             "source_of_truth: false\n"
             "---\n\n"
             f"# Candidat — {kind.replace('_', ' ').title()}\n\n"
+            f"{signal_section}"
             "## Proposition\n\n"
             f"{content.strip()}\n\n"
             "## Décision de consolidation\n\n"

@@ -45,11 +45,33 @@ Each host session maps deterministically to one Memory Loop session ID. Events a
 
 This layer is optimized for safe writes, recovery, and debugging. It is not the long-term memory and should normally be excluded from Git.
 
-### 2. Canonical Markdown
+### 2. Durable Markdown and review queue
 
-Finalization produces one readable session note. Explicit `remember` calls produce candidate notes with `status: pending`. Humans can inspect, link, edit, promote, or reject these notes in Obsidian.
+Every checkpoint refreshes one readable session note and finalization closes it. During either
+operation, deterministic strong-signal heuristics inspect user prompts and the assistant response
+associated with each turn. Explicit dissatisfaction plus a reusable correction can produce a
+candidate note in `70_State/memory_candidates/`. Explicit `remember` calls use the same queue.
+
+Automatically extracted candidates contain the source session, a concise description of the
+observed signal, the proposed durable memory, a suggested category, and consolidation checkboxes.
+They always start with `status: pending` and `source_of_truth: false`. Repeated checkpoints are
+idempotent and never overwrite a candidate that may already contain a human decision.
 
 The engine never promotes a candidate into canonical domain knowledge silently.
+
+Pending candidates are indexed for inspection but excluded from recall. They cannot influence an
+agent as durable context until a human consolidation workflow promotes their content.
+
+#### Deterministic extraction limits
+
+- A vague complaint or a one-off preference is not sufficient.
+- Initial rules target explicit process corrections involving reusable methods, visual standards,
+  tools, templates, formats, verification, or sources of truth.
+- Only concise signals and proposed rules are stored; complete conversation turns are not copied
+  into candidate files.
+- Known secret shapes are redacted during capture and rejected again during candidate extraction.
+- Heuristics trade recall for precision: implicit feedback, novel phrasings, and rules requiring
+  semantic inference may remain only in the session summary.
 
 ### 3. Derived SQLite index
 
@@ -105,6 +127,7 @@ Every hook starts a short Python process in the current integration examples. Th
 
 - Add host-native names in `hooks.py` without changing the internal event schema.
 - Replace or augment FTS5 behind `SearchIndex` while preserving Markdown as canonical.
-- Add an optional LLM distiller that writes candidates, never direct canonical edits.
+- Optionally augment the deterministic candidate extractor with an LLM while keeping the same
+  review-only output contract.
 - Add consolidation policies for decisions, corrections, preferences, and recurring failures.
 - Package host integrations separately as their hook systems stabilize.

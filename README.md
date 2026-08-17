@@ -2,7 +2,7 @@
 
 Markdown-first persistent memory for agentic AI hosts.
 
-Atlas Memory Loop captures lifecycle events through host hooks, keeps a short-lived JSONL journal, distills completed sessions into readable Markdown, and exposes bounded recall through a local MCP stdio server. Obsidian remains the human interface; Markdown remains the source of truth.
+Atlas Memory Loop captures lifecycle events through host hooks, keeps a short-lived JSONL journal, distills sessions into readable Markdown, proposes reviewable durable-memory candidates from strong feedback signals, and exposes bounded recall through a local MCP stdio server. Obsidian remains the human interface; Markdown remains the source of truth.
 
 > Status: alpha. The storage model and CLI are usable; host hook APIs can still evolve.
 
@@ -45,7 +45,7 @@ host hook -> temporary event journal -> deterministic distillation -> Markdown
      |---------------- bounded recall (SQLite FTS5) -----------|
 ```
 
-The first release deliberately avoids an LLM during distillation. Capture and consolidation therefore consume no model tokens. Tokens are used only when recalled Markdown is injected into an agent context, and that injection has a configurable budget.
+Distillation deliberately avoids an LLM. Explicit heuristics can recognize reusable process corrections and write candidates with `status: pending`; they never promote those proposals or expose them through recall before human consolidation. Capture and distillation therefore consume no model tokens. Tokens are used only when recalled Markdown is injected into an agent context, and that injection has a configurable budget.
 
 ## Design principles
 
