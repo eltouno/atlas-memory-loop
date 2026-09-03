@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .candidates import extract_memory_candidates
 from .config import Settings
 from .distill import render_session_markdown
 from .hooks import (
@@ -16,7 +17,7 @@ from .hooks import (
     normalized_payload,
 )
 from .markdown_store import MarkdownStore
-from .models import MemoryEvent, RecallResult
+from .models import MemoryEvent, RecallResult, SessionState
 from .runtime import RuntimeStore, build_session_id
 from .search import SearchIndex
 from .util import isoformat, utc_now
@@ -91,8 +92,7 @@ class MemoryEngine:
         if state is None:
             raise KeyError(f"Unknown session: {session_id}")
         events = self.runtime.load_events(session_id)
-        markdown = render_session_markdown(state, events, note_status="distilled")
-        path = self.markdown.write_session(state, markdown)
+        path = self._write_distillation(state, events, note_status="distilled")
         self.runtime.mark_distilled(session_id, path)
         self.index.sync()
         return path
@@ -104,8 +104,38 @@ class MemoryEngine:
         if state is None:
             raise KeyError(f"Unknown session: {session_id}")
         events = self.runtime.load_events(session_id)
-        markdown = render_session_markdown(state, events, note_status="checkpointed")
-        return self.markdown.write_session(state, markdown)
+        return self._write_distillation(state, events, note_status="checkpointed")
+
+    def _write_distillation(
+        self,
+        state: SessionState,
+        events: list[MemoryEvent],
+        *,
+        note_status: str,
+    ) -> Path:
+        candidates = extract_memory_candidates(events, source_session=state.session_id)
+        markdown = render_session_markdown(
+            state,
+            events,
+            note_status=note_status,
+            candidates=candidates,
+        )
+        path = self.markdown.write_session(state, markdown)
+        for candidate in candidates:
+            try:
+                self.markdown.write_candidate(
+                    content=candidate.proposed_memory,
+                    kind=candidate.candidate_type,
+                    project=state.project,
+                    source_session_id=candidate.source_session,
+                    signal=candidate.signal,
+                )
+            except Exception:
+                logger.exception(
+                    "failed to persist memory candidate for session=%s",
+                    state.session_id,
+                )
+        return path
 
     def finalize_host_session(self, host: str, host_session_id: str) -> Path:
         return self.finalize(build_session_id(host, host_session_id))
